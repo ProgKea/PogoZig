@@ -13,6 +13,8 @@ const PLAYER_INITIAL_Y = 100;
 const PLAYER_GRAVITY = 0.4;
 const PLAYER_VEL_Y_LIMIT = 25;
 
+const PLATFORM_LIMIT = 2;
+
 const WINDOW_HEIGHT = 1000;
 const WINDOW_WIDTH = 1200;
 
@@ -26,6 +28,11 @@ const Vec2 = struct {
 const Platform = struct {
     rect: c.SDL_Rect,
     color: c.SDL_Color,
+
+    fn render(self: *Platform, renderer: *c.SDL_Renderer) void {
+        _ = c.SDL_SetRenderDrawColor(renderer, self.color.r, self.color.g, self.color.b, self.color.a);
+        _ = c.SDL_RenderFillRect(renderer, &self.rect);
+    }
 };
 
 const Player = struct {
@@ -38,7 +45,6 @@ const Player = struct {
         _ = c.SDL_RenderFillRect(renderer, &self.rect);
     }
 
-    // TODO: implement movement function 
     fn move(self: *Player, direction: directions) void {
         switch (direction) {
             directions.left => {
@@ -56,8 +62,17 @@ const Player = struct {
         self.*.rect.y += @floatToInt(i32, self.*.vel_y);
     }
 
-    fn update(self: *Player) void {
+    fn collisionDetection(self: *Player, platforms: [PLATFORM_LIMIT]Platform) void {
+        for (platforms) |_, index| {
+            if (c.SDL_HasIntersection(&self.*.rect, &platforms[index].rect) == 1) {
+                self.*.vel_y = 0.0;
+            }
+        }
+    }
+
+    fn update(self: *Player, platforms: [PLATFORM_LIMIT]Platform) void {
         self.applyGravity();
+        collisionDetection(self, platforms);
     }
 };
 
@@ -78,6 +93,23 @@ pub fn main() anyerror!void {
     defer c.SDL_DestroyRenderer(renderer);
 
     var player = Player {};
+    var platforms: [PLATFORM_LIMIT]Platform = undefined;
+    var test_platform = Platform {
+        .rect = c.SDL_Rect {
+            .x = 100,
+            .y = WINDOW_HEIGHT - 100,
+            .w = WINDOW_WIDTH,
+            .h = 100,
+        },
+        .color = c.SDL_Color {
+            .r = 255,
+            .g = 255,
+            .b = 0,
+            .a = 255,
+        },
+    };
+    platforms[0] = test_platform;
+
     gameloop: while (true) {
         var sdl_event: c.SDL_Event = undefined;
         const keyboard = c.SDL_GetKeyboardState(null);
@@ -92,11 +124,14 @@ pub fn main() anyerror!void {
         if (keyboard[c.SDL_SCANCODE_A] != 0) player.move(directions.left);
         if (keyboard[c.SDL_SCANCODE_D] != 0) player.move(directions.right);
 
-        player.update();
+        player.update(platforms);
 
         _ = c.SDL_SetRenderDrawColor(renderer, 28, 28, 28, 255);
         _ = c.SDL_RenderClear(renderer);
         player.render(renderer);
+        for (platforms) |_, index| {
+            platforms[index].render(renderer);
+        }
         c.SDL_RenderPresent(renderer);
 
         c.SDL_Delay(1000/FPS);
