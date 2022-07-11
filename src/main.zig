@@ -13,7 +13,7 @@ const PLAYER_INITIAL_Y = 100;
 const PLAYER_GRAVITY = 25;
 const PLAYER_VEL_Y_LIMIT = 25;
 const PLAYER_CHARGE_LIMIT = 30;
-const PLAYER_DEFAULT_CHARGE = 5;
+const PLAYER_DEFAULT_CHARGE = 10;
 const PLAYER_CHARGE_RATE = 10;
 
 const PLATFORM_LIMIT = 2;
@@ -38,7 +38,8 @@ const Player = struct {
     vel_y: f32 = 0.0,
     angle: f16 = 0.0,
     charge_value: f32 = PLAYER_DEFAULT_CHARGE,
-    can_bounce: bool = false,
+    is_charging: bool = false,
+    on_ground: bool = false,
 
     fn render(self: *Player, renderer: *c.SDL_Renderer) void {
         _ = c.SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
@@ -62,24 +63,30 @@ const Player = struct {
     }
 
     fn bounce(self: *Player) void {
-        if (!self.can_bounce) return;
+        self.*.is_charging = false;
+        if (!self.on_ground) return;
+        self.*.on_ground = false;
         self.*.vel_y = -self.charge_value;
         self.*.charge_value = PLAYER_DEFAULT_CHARGE;
-        self.*.can_bounce = false;
     }
 
     fn charge(self: *Player, dt: f32) void {
         std.debug.print("Player charge: {d}\n", .{self.charge_value});
-        if (self.*.charge_value < PLAYER_CHARGE_LIMIT) self.*.charge_value += PLAYER_CHARGE_RATE * dt else {
+        if (self.*.charge_value < PLAYER_CHARGE_LIMIT) {
+            self.*.charge_value += PLAYER_CHARGE_RATE * dt;
+            self.*.is_charging = true;
+        }
+        else {
             self.*.charge_value = PLAYER_CHARGE_LIMIT;   
-            if (self.*.can_bounce) self.bounce();
+            if (self.on_ground) self.bounce();
         }
     }
 
     fn collisionDetection(self: *Player, platforms: [PLATFORM_LIMIT]Platform) void {
         for (platforms) |_, index| {
             if (c.SDL_HasIntersection(&self.*.rect, &platforms[index].rect) == 1) {
-                self.*.can_bounce = true;
+                self.*.on_ground = true;
+                if (!self.is_charging) self.bounce();
                 self.*.rect.y = platforms[index].rect.y - platforms[index].rect.h - @divFloor(self.rect.h, 2);
             }
         }
