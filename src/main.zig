@@ -86,15 +86,6 @@ const Player = struct {
     fn rotate(self: *Player, direction: directions) void {
         self.*.angle += @intToFloat(f16, PLAYER_ROTATION_RATE * @enumToInt(direction));
         if (self.angle >= 360 or self.angle <= -360) self.*.angle = 0;
-        self.*.pogo_tip = getRotatedPoint(
-            c.SDL_Point {
-                .x = self.pogo_rect.x + @divExact(self.pogo_rect.w, 2),
-                .y = self.pogo_rect.y + self.pogo_rect.h
-            },
-            c.SDL_Point{
-                .x = self.pogo_rect.x + @divExact(self.pogo_rect.w, 2),
-                .y = self.pogo_rect.y - @divExact(self.body_rect.h, 2),
-            }, self.angle);
     }
 
     fn bounce(self: *Player) void {
@@ -117,13 +108,25 @@ const Player = struct {
         }
     }
 
+    fn update_pogo_tip(self: *Player) void {
+        self.*.pogo_tip = getRotatedPoint(
+            c.SDL_Point {
+                .x = self.pogo_rect.x + @divExact(self.pogo_rect.w, 2),
+                .y = self.pogo_rect.y + self.pogo_rect.h
+            },
+            c.SDL_Point{
+                .x = self.pogo_rect.x + @divExact(self.pogo_rect.w, 2),
+                .y = self.pogo_rect.y - @divExact(self.body_rect.h, 2),
+            }, self.angle);
+    }
+
     fn applyGravity(self: *Player, dt: f32) void {
         if (self.vel_y < PLAYER_VEL_Y_LIMIT) self.*.vel_y += PLAYER_GRAVITY * dt else self.*.vel_y = PLAYER_VEL_Y_LIMIT;
         self.*.pogo_rect.y += @floatToInt(i32, self.vel_y);
         self.*.body_rect.y = self.pogo_rect.y - self.body_rect.h;
     }
 
-    fn collisionDetection(self: *Player, platforms: [PLATFORM_LIMIT]Platform) void {
+    fn collisionDetectionRect(self: *Player, platforms: [PLATFORM_LIMIT]Platform) void {
         for (platforms) |_, index| {
             if (c.SDL_HasIntersection(&self.pogo_rect, &platforms[index].rect) == 1) {
                 if (!self.is_charging) self.bounce();
@@ -133,10 +136,18 @@ const Player = struct {
         }
     }
 
+    fn collisionDetectionPoint(self: *Player, platforms: [PLATFORM_LIMIT]Platform) void {
+        if (c.SDL_PointInRect(&self.pogo_tip, &platforms[0].rect) == 1) {
+            if (!self.is_charging) self.bounce();
+            self.*.on_ground = true;
+            self.*.pogo_rect.y = platforms[0].rect.y - self.pogo_rect.h;
+        }
+    }
+
     fn update(self: *Player, dt: f32, platforms: [PLATFORM_LIMIT]Platform) void {
-        _ = dt;
-        // self.applyGravity(dt);
-        collisionDetection(self, platforms);
+        self.applyGravity(dt);
+        self.update_pogo_tip();
+        collisionDetectionPoint(self, platforms);
     }
 };
 
