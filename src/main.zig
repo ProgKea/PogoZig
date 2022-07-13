@@ -1,4 +1,5 @@
 const std = @import("std");
+const math = std.math;
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
@@ -8,8 +9,8 @@ const DELTA_TIME_SEC: f32 = 1.0 / @intToFloat(f32, FPS);
 
 const POGO_WIDTH = 10;
 const POGO_HEIGHT = 40;
-const POGO_INITIAL_X = 100;
-const POGO_INITIAL_Y = 100;
+const POGO_INITIAL_X = 400;
+const POGO_INITIAL_Y = 400;
 
 const PLAYER_WIDTH = 40;
 const PLAYER_HEIGHT = 100;
@@ -29,6 +30,19 @@ const WINDOW_WIDTH = 1200;
 
 const directions = enum(i8) { left = -1, right = 1 };
 
+fn degreesToRadians(degree: f16) f16 {
+    return degree * math.pi / 180;
+}
+
+fn getRotatedPoint(target_point: c.SDL_Point, rotation_point: c.SDL_Point, angle: f16) c.SDL_Point {
+    const angle_in_radians = @as(f32, degreesToRadians(angle));
+    std.debug.print("angle_in_radians: {d}\n", .{angle_in_radians});
+    return c.SDL_Point {
+        .x = @floatToInt(c_int, @intToFloat(f16, (target_point.x - rotation_point.x)) * (angle_in_radians) - @intToFloat(f16, (target_point.y - rotation_point.y)) * math.sin(angle_in_radians) + @intToFloat(f16, rotation_point.x)),
+        .y = @floatToInt(c_int, @intToFloat(f16, (target_point.x - rotation_point.x)) * math.sin(angle_in_radians) + @intToFloat(f16, (target_point.y - rotation_point.y)) * math.cos(angle_in_radians) + @intToFloat(f16, rotation_point.y))
+    };
+}
+
 const Platform = struct {
     rect: c.SDL_Rect,
     color: c.SDL_Color,
@@ -41,6 +55,10 @@ const Platform = struct {
 
 const Player = struct {
     pogo_rect: c.SDL_Rect = c.SDL_Rect{ .x = POGO_INITIAL_X, .y = POGO_INITIAL_Y, .w = POGO_WIDTH, .h = POGO_HEIGHT },
+    pogo_tip: c.SDL_Point = c.SDL_Point {
+        .x = POGO_INITIAL_X + @divExact(POGO_WIDTH, 2),
+        .y = POGO_INITIAL_Y + POGO_HEIGHT
+    },
     body_rect: c.SDL_Rect = c.SDL_Rect{ .x = PLAYER_X, .y = PLAYER_Y, .w = PLAYER_WIDTH, .h = PLAYER_HEIGHT },
     vel_y: f32 = 0.0,
     angle: f16 = 0.0,
@@ -60,11 +78,23 @@ const Player = struct {
             .x = @divExact(self.body_rect.w, 2),
             .y = @divExact(self.body_rect.h, 2),
         }, c.SDL_FLIP_NONE);
+
+        _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        _ = c.SDL_RenderDrawPoint(renderer, self.pogo_tip.x, self.pogo_tip.y);
     }
 
     fn rotate(self: *Player, direction: directions) void {
         self.*.angle += @intToFloat(f16, PLAYER_ROTATION_RATE * @enumToInt(direction));
         if (self.angle >= 360 or self.angle <= -360) self.*.angle = 0;
+        self.*.pogo_tip = getRotatedPoint(
+            c.SDL_Point {
+                .x = self.pogo_rect.x + @divExact(self.pogo_rect.w, 2),
+                .y = self.pogo_rect.y + self.pogo_rect.h
+            },
+            c.SDL_Point{
+                .x = self.pogo_rect.x + @divExact(self.pogo_rect.w, 2),
+                .y = self.pogo_rect.y - @divExact(self.body_rect.h, 2),
+            }, self.angle);
     }
 
     fn bounce(self: *Player) void {
@@ -104,7 +134,8 @@ const Player = struct {
     }
 
     fn update(self: *Player, dt: f32, platforms: [PLATFORM_LIMIT]Platform) void {
-        self.applyGravity(dt);
+        _ = dt;
+        // self.applyGravity(dt);
         collisionDetection(self, platforms);
     }
 };
@@ -168,6 +199,7 @@ pub fn main() anyerror!void {
         _ = c.SDL_SetRenderDrawColor(renderer, 28, 28, 28, 255);
         _ = c.SDL_RenderClear(renderer);
         player.render(renderer);
+        _ = c.SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
         for (platforms) |_, index| {
             platforms[index].render(renderer);
         }
