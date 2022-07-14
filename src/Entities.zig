@@ -21,8 +21,26 @@ pub const directions = enum(i8) { left = -1, right = 1 };
 pub const PLATFORM_LIMIT = 2;
 
 pub const Platform = struct {
-    rect: root.c.SDL_Rect,
-    color: root.c.SDL_Color,
+    rect: root.c.SDL_Rect = root.c.SDL_Rect {
+        .w = 0,
+        .h = 0,
+        .x = 0,
+        .y = 0,
+    },
+    color: root.c.SDL_Color = root.c.SDL_Color {
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 255,
+    },
+
+    pub fn init_array(platform_array: *[PLATFORM_LIMIT]Platform) void {
+        var i: u32 = 0;
+        while (i < PLATFORM_LIMIT) : (i += 1) {
+            root.std.debug.print("i: {d}\n", .{i});
+            platform_array.*[i] = Platform {};
+        }
+    }
 
     pub fn render(self: *Platform, renderer: *root.c.SDL_Renderer) void {
         _ = root.c.SDL_SetRenderDrawColor(renderer, self.color.r, self.color.g, self.color.b, self.color.a);
@@ -115,17 +133,20 @@ pub const Player = struct {
         }
     }
 
-    fn collisionDetectionPoint(self: *Player, platform: root.entity.Platform) void {
-        if (root.c.SDL_PointInRect(&self.pogo_tip, &platform.rect) == 1) {
-            if (!self.is_charging) self.bounce();
-            self.*.on_ground = true;
-            self.*.pogo_rect.y = platform.rect.y - self.pogo_rect.h;
+    fn collisionDetectionPoint(self: *Player, platforms: [root.entity.PLATFORM_LIMIT]root.entity.Platform) void {
+        for (platforms) |platform| {
+            root.std.debug.print("Platform: {s}\n", .{platform.rect});
+            if (root.c.SDL_PointInRect(&self.pogo_tip, &platform.rect) == 1) {
+                if (!self.is_charging) self.bounce();
+                self.*.on_ground = true;
+                self.*.pogo_rect.y = platform.rect.y - self.pogo_rect.h;
+            }
         }
     }
 
     pub fn update(self: *Player, dt: f32, platforms: [root.entity.PLATFORM_LIMIT]root.entity.Platform) void {
         self.applyGravity(dt);
         self.update_pogo_tip();
-        collisionDetectionPoint(self, platforms[0]);
+        collisionDetectionPoint(self, platforms);
     }
 };

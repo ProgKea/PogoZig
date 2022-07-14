@@ -30,7 +30,8 @@ pub fn main() anyerror!void {
 
     var player = entity.Player{};
     var platforms: [entity.PLATFORM_LIMIT]entity.Platform = undefined;
-    var test_platform = entity.Platform{
+    entity.Platform.init_array(&platforms);
+    var test_platform = entity.Platform {
         .rect = c.SDL_Rect {
             .x = 100,
             .y = WINDOW_HEIGHT - 100,
